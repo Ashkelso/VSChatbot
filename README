@@ -1,0 +1,5 @@
+This is a chatbot that I wrote for assisting victims of domestic violence and sexual abuse access statutory compensation, financial assistance, and counselling services. It is written to provide assistance with navigating the New South Wales Victims Compensation Scheme (Victims Rights and Support Act 2013). 
+
+This code provides the back end. Next steps are to integrate it with a more user friendly front end (e.g. FB Messenger, or other chatbot interface) and deploy as beta for use by the general public. 
+
+The chatbot uses machine learning to classify user descriptions of abuse as either assault or sexual abuse offences. It then asked some follow up questions to narow down the kind of assistance that is available. 
