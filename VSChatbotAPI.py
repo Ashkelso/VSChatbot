@@ -3,25 +3,40 @@
 # this is a victims compensation chat bot designed to lead users through a series of questions to determine what
 # assistance they may be entitled to and to refer them to helpful services
 
+# Author: Victor Aung
+# refactored and created RESTful API classes which can be called from an external UI e.g. web app, FB or slack
+# to get greetings and advice on demand from this chatbot state machine and NLP classifiers
+# testable as a localhost on a given port
+
 import numpy as np
 import pickle
+import NLPClassifier
+
+from flask import Flask
+from flask import request
+from flask import render_template
+from flask_restful import Resource, Api
+
+from NLPClassifier import preprocessTextAdvanced
+
+app = Flask(__name__)
+api = Api(app)
 
 # Loading classifiers
-forest = pickle.load(open("randomForest.p","rb"))
-supportV = pickle.load(open("NewSVC.p","rb"))
+forest = pickle.load(open("RandomForest.p","rb"))
+supportV = pickle.load(open("NuSVC.p","rb"))
 bayes = pickle.load(open("MultiNB.p","rb"))
-
 
 def response(key):
     #dictionary of all the questions and responses for the chatbot
-    conversations = {'welcome' :"Hi, I'm a chatbot. \nMy job is to help people with information about "
+    conversations = {'welcome' :"Hi, I'm Vic, a chatbot. \nMy job is to help people with information about "
                                 "victims support services in New South Wales. If you have been the "
                                 "victim of physical or sexual abuse I'd like to help you \n\n",
 
-                     'main menu': "Would you like some information on: \n"
-                                  "1. Free legal services \n"
-                                  "2. Counselling \n"
-                                  "3. Victims Compensation \n\n"
+                     'main menu': "What would you like to talk about?\n"
+                                  "* Free legal services \n"
+                                  "* Counselling \n"
+                                  "* Victims Compensation \n\n"
                                   "When you're done talking to me, just say 'bye'\n\n",
 
                      'limit': "That's everything I know about. \n\n",
@@ -122,7 +137,7 @@ def response(key):
                      'application advice': "Would you like information on free legal services that can assist you with making "
                                            "your application for Victims Support? \n\n",
 
-                     'disclaimer': "Remember that i'm just a chatbot, not a lawyer, I can only"
+                     'disclaimer': "Remember that i'm just a chatbot, not a lawyer, can only"
                                    " provide information, not legal advice. \n\n",
 
                      'counselling': "Two options for free counselling include: \n"
@@ -131,7 +146,7 @@ def response(key):
                                     "2. Apply to Victims Services for NSW government-funded counselling with "
                                     "social workers and psychologists (Ph: 1800 633 063 / Email: vs@justice.nsw.gov.au)\n\n",
 
-                     'other_services': "Would you like to find out what other assistance may be available to you through "
+                     'other services': "Would you like to find out what other assistance may be available to you through "
                                        "Victims Services (such as financial assistance and compensation)?\n\n",
 
                      'legal services': "It is important to know your rights if you've been a victim of crime."
@@ -174,296 +189,296 @@ def stateManager(user_response, state):
     if state['previous_question']=='main menu':
         for s in user_response.split():
             if s in victimsComp:
-                print(response('victims compensation'))
-                print(response('briefly'))
+                state['advice'] += response('victims compensation')
+                state['advice'] += response('briefly')
                 state['previous_question'] = 'briefly'
                 break
             elif s in counselling:
-                print(response('counselling'))
-                print(response('other_services'))
-                state['previous_question'] = 'other_services'
+                state['advice'] += response('counselling')
+                state['advice'] += response('other services')
+                state['previous_question'] = 'other services'
                 break
             elif s in legal:
-                print(response('free legal services'))
-                print(response('main menu'))
+                state['advice'] += response('free legal services')
+                state['advice'] += response('main menu')
                 state['previous_question'] = 'main menu'
                 break
             elif s in no:
-                print(response('limit'))
-                print(response('bye'))
+                state['advice'] += response('limit')
+                state['advice'] += response('bye')
                 state['previous_question'] = 'bye'
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response('main menu'))
+                    state['advice'] += response('error')
+                    state['advice'] += response('main menu')
                     state['previous_question'] = 'main menu'
 
-    elif state['previous_question'] == 'other_services':
+    elif state['previous_question'] == 'other services':
         for s in user_response.split():
             if s in yes:
-                print(response('victims compensation'))
-                print(response('briefly'))
+                state['advice'] += response('victims compensation')
+                state['advice'] += response('briefly')
                 state['previous_question'] = 'briefly'
                 break
             elif s in no:
-                print(response('legal services'))
+                state['advice'] += response('legal services')
                 state['previous_question'] = 'legal services'
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
     elif state['previous_question'] == 'legal services':
-        print(response('free legal services'))
-        print(response('main menu'))
+        state['advice'] += response('free legal services')
+        state['advice'] += response('main menu')
         state['previous_question'] = 'main menu'
 
     elif state['previous_question'] == 'briefly':
         category = classifier(user_response)
-        print(response(category))
+        state['advice'] += response(category)
         state['previous_question'] = category
 
 #sexual abuse questions
     elif state['previous_question'] == 'sexual abuse':
         for s in user_response.split():
             if s in yes:
-                print(response('further questions'))
+                state['advice'] += response('further questions')
                 state['category'] = 'sexual abuse'
-                print(response('sexual series'))
+                state['advice'] += response('sexual series')
                 state['previous_question'] = 'sexual series'
                 break
             elif s in no:
-                print(response('attempt'))
+                state['advice'] += response('attempt')
                 state['previous_question'] = 'attempt'
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
     elif state['previous_question'] == 'sexual series':
         for s in user_response.split():
             if s in yes:
-                print(response('Category B'))
+                state['advice'] += response('Category B')
                 state['previous_question'] = 'Category B'
                 application(state)
                 break
             elif s in no:
-                print(response('aggravated'))
+                state['advice'] += response('aggravated')
                 state['previous_question'] = 'aggravated'
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
     elif state['previous_question'] == 'aggravated':
         for s in user_response.split():
             if s in yes:
-                print(response('Category B'))
+                state['advice'] += response('Category B')
                 state['previous_question'] = 'Category B'
                 application(state)
                 break
             elif s in no:
-                print(response('penetrate'))
+                state['advice'] += response('penetrate')
                 state['previous_question'] = 'penetrate'
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
     elif state['previous_question'] == 'penetrate':
         for s in user_response.split():
             if s in yes:
-                print(response('Category C'))
+                state['advice'] += response('Category C')
                 state['previous_question'] = 'Category C'
                 application(state)
                 break
             elif s in no:
-                print(response('attempt penetrate'))
+                state['advice'] += response('attempt penetrate')
                 state['previous_question'] = 'attempt penetrate'
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
     elif state['previous_question'] == 'attempt penetrate':
         for s in user_response.split():
             if s in yes:
-                print(response('injuries'))
+                state['advice'] += response('injuries')
                 state['previous_question'] = 'injuries'
                 break
             elif s in no:
-                print(response('Category D'))
+                state['advice'] += response('Category D')
                 state['previous_question'] = 'Category D'
                 application(state)
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
     elif state['previous_question'] == 'injuries':
         for s in user_response.split():
             if s in yes:
-                print(response('Category C'))
+                state['advice'] += response('Category C')
                 state['previous_question'] = 'Category C'
                 application(state)
                 break
             elif s in no:
-                print(response('Category D'))
+                state['advice'] += response('Category D')
                 state['previous_question'] = 'Category D'
                 application(state)
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
 #handleing re-attempts at classifying the offence
     elif state['previous_question']=='attempt':
         for s in user_response.split():
             if s in yes:
-                print(response('briefly'))
+                state['advice'] += response('briefly')
                 state['previous_question'] = 'briefly'
                 break
             elif s in no:
-                print(response('match error'))
+                state['advice'] += response('match error')
                 state['previous_question'] = 'match error'
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
     elif state['previous_question'] == 'match error':
         for s in user_response.split():
             if s in yes:
-                print(response('free legal services'))
-                print(response('main menu'))
+                state['advice'] += response('free legal services')
+                state['advice'] += response('main menu')
                 state['previous_question'] = 'main menu'
                 break
             elif s in no:
-                print(response('main menu'))
+                state['advice'] += response('main menu')
                 state['previous_question'] = 'main menu'
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
 #assault questions
     elif state['previous_question'] == 'assault':
         for s in user_response.split():
             if s in yes:
-                print(response('further questions'))
+                state['advice'] += response('further questions')
                 state['category'] = 'assault'
-                print(response('serious harm'))
+                state['advice'] += response('serious harm')
                 state['previous_question'] = 'serious harm'
                 break
             elif s in no:
-                print(response('attempt'))
+                state['advice'] += response('attempt')
                 state['previous_question'] = 'attempt'
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
     elif state['previous_question'] == 'serious harm':
         for s in user_response.split():
             if s in yes:
-                print(response('Category C'))
+                state['advice'] += response('Category C')
                 state['previous_question'] = 'Category C'
                 application(state)
                 break
             elif s in no:
-                print(response('eighteen'))
+                state['advice'] += response('eighteen')
                 state['previous_question'] = 'eighteen'
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
     elif state['previous_question'] == 'eighteen':
         for s in user_response.split():
             if s in yes:
-                print(response('child'))
+                state['advice'] += response('child')
                 state['previous_question'] = 'child'
                 break
             elif s in no:
-                print(response('Category D'))
+                state['advice'] += response('Category D')
                 state['previous_question'] = 'Category D'
                 application(state)
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
     elif state['previous_question'] == 'child':
         for s in user_response.split():
             if s in yes:
-                print(response('Category C'))
+                state['advice'] += response('Category C')
                 state['previous_question'] = 'Category C'
                 application(state)
                 break
             elif s in no:
-                print(response('Category D'))
+                state['advice'] += response('Category D')
                 state['previous_question'] = 'Category D'
                 application(state)
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
+                    state['advice'] += response('error')
 
     elif state['previous_question'] == 'application':
         for s in user_response.split():
             if s in yes:
-                print(response('legal services'))
+                state['advice'] += response('legal services')
                 state['previous_question'] = 'legal services'
                 break
             elif s in no:
-                print(response('bye'))
+                state['advice'] += response('bye')
                 break
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
     elif state['previous_question'] == 'application advice':
         for s in user_response.split():
             if s in yes:
-                print(response('free legal services'))
-                print(response('main menu'))
+                state['advice'] += response('free legal services')
+                state['advice'] += response('main menu')
                 state['previous_question'] = 'main menu'
             elif s in no:
-                print(response('main menu'))
+                state['advice'] += response('main menu')
                 state['previous_question'] = 'main menu'
             else:
                 if s == user_response.split()[-1]:
-                    print(response('error'))
-                    print(response(state['previous_question']))
+                    state['advice'] += response('error')
+                    state['advice'] += response(state['previous_question'])
 
     else:
-        print(response('error'))
-        print(response(state['previous_question']))
+        state['advice'] += response('error')
+        state['advice'] += response(state['previous_question'])
 
 def application(state):
-    print(response('application'))
+    state['advice'] += response('application')
     # providing further resources based on category of offence
-    print('\n\n you may also find this information helpful:\n\n')
+    state['advice'] += '\n\n you may also find this information helpful:\n\n'
     if state['category'] == 'sexual abuse':
-        print(response('sexual abuse information'))
+        state['advice'] += response('sexual abuse information')
     else:
-        print(response('AVO'))
-    print(response('disclaimer'))
-    print(response('application advice'))
+        state['advice'] += response('AVO')
+    state['advice'] += response('disclaimer')
+    state['advice'] += response('application advice')
     state['previous_question'] = 'application advice'
 
 def classifier(user_response):
@@ -473,21 +488,27 @@ def classifier(user_response):
             'sexual abuse': 0}
 
     s = supportV.predict(np.array([user_response]))[0]
+    print ('s=',s)
 
     vote[s] += 1
 
     r = forest.predict(np.array([user_response]))[0]
+    print ('r=',r)
 
-    vote[r] +=1
+    vote[r] += 1
 
     b = bayes.predict(np.array([user_response]))[0]
+    print ('b=',b)
 
     vote[b] += 1
 
-    if vote['sexual abuse'] > vote['assault']:
-        return 'sexual abuse'
+#    if vote['assault'] > vote['sexual abuse']:
+    if vote['assault'] > vote['sexual abuse']:
+            print('score SA = ', vote['sexual abuse'], 'score assault = ', vote['assault'])
+            return 'assault'
     else:
-        return 'assault'
+        print('score SA = ', vote['sexual abuse'], 'score assault = ', vote['assault'])
+        return 'sexual abuse'
 
 
     #return supportV.predict(np.array([user_response]))[0])
@@ -501,30 +522,59 @@ def classifier(user_response):
     #         if s == user_response.split()[-1]:
     #             return 'error'
 
-#for tracking the state of the conversation and recording the category of abuse - 'assault' or 'sexual abuse'
-state = {'category':"",
-         'previous_question':""}
+class Greetings(Resource):
+    def get(self):
+        # for tracking the state of the conversation and recording the category of abuse - 'assault' or 'sexual abuse'
+        state = {'category': "",
+                 'previous_question': "",
+                 'advice': ""}
 
-#starting the conversation with the user
-print(response('welcome'))
-print(response('main menu'))
+        state['advice'] = response('welcome')
+        state['advice'] += response('main menu')
 
-#setting the initial state of the conversation
-state['previous_question'] = 'main menu'
+        # setting the initial state of the conversation
+        state['previous_question'] = 'main menu'
 
-#continually loops around requesting input from the user, passing their response to stateManager function which
-#selectes the correct response based on the content of the user input and the previous question that was asked.
-#if user says bye at any time the chat bot says good bye to them and ends the conversation.
+        return {'advice': '\n' + state['advice'],
+                'category':state['category'],
+                'previous_question': state['previous_question']}
 
-while True:
-    user_response = input().lower().strip("`~@!#$%^&*()_+=?/\|,./*1234567890")
+class Bye(Resource):
+    def get(self):
+        # for tracking the state of the conversation and recording the category of abuse - 'assault' or 'sexual abuse'
+        state = {'category': "",
+                 'previous_question': "",
+                 'advice': ""}
 
-    if(user_response == "bye"):
-        print(response('bye'))
-        break
-    else:
-        stateManager(user_response=user_response,state=state)
-    if(state['previous_question']=='bye'):
-        break
+        state['advice'] = response('bye')
 
+        return {'advice': '\n' + state['advice'],
+                'category':state['category'],
+                'previous_question': state['previous_question']}
 
+class Advice(Resource):
+    def get(self):
+        # for tracking the state of the conversation and recording the category of abuse - 'assault' or 'sexual abuse'
+        state = {'category': "",
+                 'previous_question': "",
+                 'advice': ""}
+
+        user_response = request.args.get('user_response')
+        state['category'] = request.args.get('category')
+        state['previous_question'] = request.args.get('previous_question')
+        if (user_response != ''):
+            state['advice'] = ''
+            if (user_response == "bye"):
+                state['advice'] = response('bye')
+            else:
+                stateManager(user_response=user_response, state=state)
+            return {'advice': '\n' + state['advice'],
+                    'category': state['category'],
+                    'previous_question': state['previous_question']}
+
+api.add_resource(Greetings, '/')
+api.add_resource(Advice, '/answer')
+api.add_resource(Bye, '/bye')
+
+if __name__ == "__main__":
+    app.run(host='localhost', port=8770)

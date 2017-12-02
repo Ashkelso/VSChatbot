@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="stylesheet" href="static/css/bootstrap.min.css">
+    <!--link rel="stylesheet" href="static/css/narrow-jumbotron.css"-->
+    <script src="static/js/bootstrap.min.js"></script>
+    <title>Vue Flask</title>
+</head>
+<body>
+    <div class = "container">
+        <header class="header clearfix">
+            <h3 class="text-muted">Vic is chatting ...</h3>
+        </header>
+        <main role="main">
+            <div class="jumbotron">
+
+            {% if result %}
+                <textarea readonly name="chatbot_advice" class="form-control bg-info text-white" type="text" rows="12">
+                {{ result }}
+                </textarea><br>
+            {% endif %}
+
+            <h3>Your response is ...</h3>
+            <form action="/answer" method="GET">
+                <b>Please type your response below and press Submit</b><br>
+                <textarea name="user_response" class="form-control" type="text" rows="5" style="background-color:lightyellow;" autofocus></textarea><br>
+                    <input type="hidden" name="advice" value="{{result}}">
+                    <input type="hidden" name="category" value="{{category}}">
+                    <input type="hidden" name="previous_question" value="{{previous_question}}">
+                    <input type="submit" value="Submit" class="btn btn-lg btn-primary">
+            </form>
+            </div>
+        </main>
+    </div>
+</body>
+</html>
